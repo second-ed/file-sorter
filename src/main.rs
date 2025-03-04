@@ -3,18 +3,22 @@ use std::env;
 use std::fmt;
 use std::fs;
 use std::path::Path;
+use std::result::Result;
 use text_colorizer::*;
 use walkdir::WalkDir;
+// use std::error::Error;
+use std::io::Error;
 
 fn main() {
     let args = parse_args();
     // println!("Using Args:\n    {}", args);
-    let entries: Entries = get_dirs_and_files(args.root_dir);
+    let entries: Entries = get_dirs_and_files(args.root_dir.clone());
     // println!("{}", entries);
     // println!("{:?}", entries.dirs);
     // println!("{:?}", entries.files);
     let file_map = create_ext_map(entries.files);
     println!("{:?}", file_map);
+    let _ = create_dirs(args.root_dir.clone(), file_map);
 }
 
 fn get_dirs_and_files(root_dir: String) -> Entries {
@@ -66,6 +70,14 @@ fn create_ext_map(files: Vec<String>) -> HashMap<String, Vec<String>> {
         }
     }
     file_map
+}
+
+fn create_dirs(root_dir: String, file_map: HashMap<String, Vec<String>>) -> Result<(), Error> {
+    for (key, _) in file_map.iter() {
+        let path = root_dir.clone() + "/_" + &key;
+        fs::create_dir_all(path)?;
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
