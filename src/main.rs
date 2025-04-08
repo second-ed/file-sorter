@@ -2,80 +2,120 @@ use std::collections::HashMap;
 use std::env;
 use std::fmt;
 use std::fs;
+use std::io;
 use std::path::Path;
-use std::result::Result;
 use text_colorizer::*;
-use walkdir::WalkDir;
-// use std::error::Error;
-use std::io::Error;
 
 fn main() {
     let args = parse_args();
-    // println!("Using Args:\n    {}", args);
-    let entries: Entries = get_dirs_and_files(args.root_dir.clone());
-    // println!("{}", entries);
-    // println!("{:?}", entries.dirs);
-    // println!("{:?}", entries.files);
-    let file_map = create_ext_map(entries.files);
-    println!("{:?}", file_map);
-    let _ = create_dirs(args.root_dir.clone(), file_map);
+    let entries: DirEntries =
+        dbg!(get_files_dirs(args.root_dir.clone()).expect("Failed to get dirs and files"));
+
+    let ext_map = dbg!(get_ext_map(&entries.files));
+    let dirs_to_create = dbg!(get_dirs_to_create(&entries, &ext_map));
+    let name_pairs = dbg!(get_name_pairs(ext_map, &entries.root));
+    let _ = create_dirs(dirs_to_create);
+    let _ = rename_files(name_pairs);
 }
 
-fn get_dirs_and_files(root_dir: String) -> Entries {
-    let (dirs, files): (Vec<_>, Vec<_>) = WalkDir::new(root_dir)
+#[derive(Debug)]
+struct DirEntries {
+    root: String,
+    dirs: Vec<String>,
+    files: Vec<String>,
+}
+
+impl fmt::Display for DirEntries {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {:?}\n{} {:?}",
+            "DirEntries.dirs: ".bold().green(),
+            self.dirs,
+            "DirEntries.files:".bold().green(),
+            self.files
+        )
+    }
+}
+
+fn get_files_dirs(root_dir: String) -> Result<DirEntries, io::Error> {
+    let entries: Vec<_> = fs::read_dir(&root_dir)?
+        .filter_map(|entry| entry.ok())
+        .collect();
+
+    let (dir_entries, file_entries): (Vec<_>, Vec<_>) = entries
         .into_iter()
-        .filter_map(|entry| match entry {
-            Ok(entry) => Some(entry),
-            Err(e) => {
-                eprintln!("{} {:?}", "Error reading entry:".red().bold(), e);
-                None
-            }
-        })
-        .filter_map(|entry| match fs::metadata(entry.path()) {
-            Ok(md) => Some((entry.path().to_path_buf(), md)),
-            Err(e) => {
-                eprintln!(
-                    "{} {:?}: {}",
-                    "Error reading metadata:".red().bold(),
-                    entry.path(),
-                    e
-                );
-                None
-            }
-        })
-        .partition(|(_, md)| md.is_dir());
+        .partition(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false));
 
-    let entries = Entries {
-        dirs: dirs
-            .into_iter()
-            .map(|(path, _)| path.display().to_string())
-            .collect(),
-        files: files
-            .into_iter()
-            .map(|(path, _)| path.display().to_string())
-            .collect(),
+    let dirs: Vec<String> = dir_entries
+        .into_iter()
+        .map(|entry| entry.path().to_string_lossy().to_string())
+        .collect();
+    let files: Vec<String> = file_entries
+        .into_iter()
+        .map(|entry| entry.path().to_string_lossy().to_string())
+        .collect();
+
+    let entries = DirEntries {
+        root: root_dir,
+        dirs: dirs,
+        files: files,
     };
-    entries
+    Ok(entries)
 }
 
-fn create_ext_map(files: Vec<String>) -> HashMap<String, Vec<String>> {
-    let mut file_map: HashMap<String, Vec<String>> = HashMap::new();
+fn get_ext_map(files: &Vec<String>) -> HashMap<String, Vec<String>> {
+    let mut ext_map: HashMap<String, Vec<String>> = HashMap::new();
 
     for f in files {
         let path = Path::new(&f);
 
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            let ext = ext.to_lowercase();
-            file_map.entry(ext).or_insert_with(Vec::new).push(f);
+            let ext = format!("_{}", ext.to_lowercase());
+            ext_map.entry(ext).or_insert_with(Vec::new).push(f.clone());
         }
     }
-    file_map
+    ext_map
 }
 
-fn create_dirs(root_dir: String, file_map: HashMap<String, Vec<String>>) -> Result<(), Error> {
-    for (key, _) in file_map.iter() {
-        let path = root_dir.clone() + "/_" + &key;
-        fs::create_dir_all(path)?;
+fn get_dirs_to_create(entries: &DirEntries, ext_map: &HashMap<String, Vec<String>>) -> Vec<String> {
+    let mut dirs_to_create: Vec<String> = Vec::new();
+
+    for (key, _) in ext_map.iter() {
+        let path = Path::new(&entries.root)
+            .join(&key)
+            .to_string_lossy()
+            .to_string();
+
+        if !entries.dirs.contains(&path) && path != entries.root {
+            dirs_to_create.push(path);
+        }
+    }
+    dirs_to_create
+}
+
+fn get_name_pairs(ext_map: HashMap<String, Vec<String>>, root: &String) -> HashMap<String, String> {
+    let mut name_pairs: HashMap<String, String> = HashMap::new();
+
+    for (k, files) in ext_map {
+        for f in files {
+            let new_name = f.replace(root, &format!("{}/{}", root, k));
+            name_pairs.insert(f, new_name);
+        }
+    }
+    name_pairs
+}
+
+fn create_dirs(dirs_to_create: Vec<String>) -> io::Result<()> {
+    for d in dirs_to_create {
+        fs::create_dir_all(&d)?;
+    }
+    Ok(())
+}
+
+fn rename_files(name_pairs: HashMap<String, String>) -> io::Result<()> {
+    for (old_name, new_name) in name_pairs {
+        fs::rename(old_name, new_name)?;
     }
     Ok(())
 }
@@ -105,25 +145,6 @@ fn parse_args() -> Args {
     }
     Args {
         root_dir: args[0].clone(),
-    }
-}
-
-#[derive(Debug)]
-struct Entries {
-    dirs: Vec<String>,
-    files: Vec<String>,
-}
-
-impl fmt::Display for Entries {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} {:?}\n{} {:?}",
-            "Entries.dirs: ".bold().green(),
-            self.dirs,
-            "Entries.files:".bold().green(),
-            self.files
-        )
     }
 }
 
