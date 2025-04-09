@@ -43,18 +43,17 @@ fn get_files_dirs(root_dir: String) -> Result<DirEntries, io::Error> {
         .filter_map(|entry| entry.ok())
         .collect();
 
-    let (dir_entries, file_entries): (Vec<_>, Vec<_>) = entries
-        .into_iter()
-        .partition(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false));
-
-    let dirs: Vec<String> = dir_entries
-        .into_iter()
-        .map(|entry| entry.path().to_string_lossy().to_string())
-        .collect();
-    let files: Vec<String> = file_entries
-        .into_iter()
-        .map(|entry| entry.path().to_string_lossy().to_string())
-        .collect();
+    let (dirs, files): (Vec<String>, Vec<String>) =
+        entries
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |(mut dirs, mut files), entry| {
+                let path = entry.path().to_string_lossy().to_string();
+                match entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                    true => dirs.push(path),
+                    false => files.push(path),
+                }
+                (dirs, files)
+            });
 
     let entries = DirEntries {
         root: root_dir,
