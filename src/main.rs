@@ -154,3 +154,134 @@ fn print_usage() {
     );
     eprintln!("Usage: file_sorter <ROOT_DIR>");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_ext_map() {
+        let files = vec![
+            String::from("some.csv"),
+            String::from("wooo.parquet"),
+            String::from("another.parquet"),
+            String::from("bleurgh.xlsx"),
+        ];
+        let expected_result = HashMap::from([
+            (String::from("_csv"), vec![String::from("some.csv")]),
+            (
+                String::from("_parquet"),
+                vec![
+                    String::from("wooo.parquet"),
+                    String::from("another.parquet"),
+                ],
+            ),
+            (String::from("_xlsx"), vec![String::from("bleurgh.xlsx")]),
+        ]);
+
+        assert_eq!(get_ext_map(&files), expected_result);
+    }
+
+    #[test]
+    fn test_get_dirs_to_create() {
+        let entries = DirEntries {
+            root: String::from("blah"),
+            dirs: vec![String::from("blah/_csv"), String::from("blah/_parquet")],
+            files: vec![
+                String::from("some.csv"),
+                String::from("wooo.parquet"),
+                String::from("another.parquet"),
+                String::from("bleurgh.xlsx"),
+            ],
+        };
+
+        let ext_map = HashMap::from([
+            (String::from("_csv"), vec![String::from("some.csv")]),
+            (
+                String::from("_parquet"),
+                vec![
+                    String::from("wooo.parquet"),
+                    String::from("another.parquet"),
+                ],
+            ),
+            (String::from("_xlsx"), vec![String::from("bleurgh.xlsx")]),
+        ]);
+
+        let expected_result = vec![String::from("blah/_xlsx")];
+
+        assert_eq!(get_dirs_to_create(&entries, &ext_map), expected_result);
+    }
+
+    #[test]
+    fn test_get_name_pairs() {
+        let ext_map = HashMap::from([
+            (
+                String::from("_csv"),
+                vec![
+                    String::from("User/some/person/docs/report.csv"),
+                    String::from("User/some/person/docs/data.csv"),
+                    String::from("User/some/person/docs/doc.csv"),
+                ],
+            ),
+            (
+                String::from("_parquet"),
+                vec![
+                    String::from("User/some/person/docs/report.parquet"),
+                    String::from("User/some/person/docs/data.parquet"),
+                    String::from("User/some/person/docs/doc.parquet"),
+                ],
+            ),
+            (
+                String::from("_pdf"),
+                vec![
+                    String::from("User/some/person/docs/report.pdf"),
+                    String::from("User/some/person/docs/data.pdf"),
+                    String::from("User/some/person/docs/doc.pdf"),
+                ],
+            ),
+        ]);
+
+        let root = String::from("User/some/person/docs");
+
+        let expected_result = HashMap::from([
+            (
+                String::from("User/some/person/docs/report.csv"),
+                String::from("User/some/person/docs/_csv/report.csv"),
+            ),
+            (
+                String::from("User/some/person/docs/data.csv"),
+                String::from("User/some/person/docs/_csv/data.csv"),
+            ),
+            (
+                String::from("User/some/person/docs/doc.csv"),
+                String::from("User/some/person/docs/_csv/doc.csv"),
+            ),
+            (
+                String::from("User/some/person/docs/report.parquet"),
+                String::from("User/some/person/docs/_parquet/report.parquet"),
+            ),
+            (
+                String::from("User/some/person/docs/data.parquet"),
+                String::from("User/some/person/docs/_parquet/data.parquet"),
+            ),
+            (
+                String::from("User/some/person/docs/doc.parquet"),
+                String::from("User/some/person/docs/_parquet/doc.parquet"),
+            ),
+            (
+                String::from("User/some/person/docs/report.pdf"),
+                String::from("User/some/person/docs/_pdf/report.pdf"),
+            ),
+            (
+                String::from("User/some/person/docs/data.pdf"),
+                String::from("User/some/person/docs/_pdf/data.pdf"),
+            ),
+            (
+                String::from("User/some/person/docs/doc.pdf"),
+                String::from("User/some/person/docs/_pdf/doc.pdf"),
+            ),
+        ]);
+
+        assert_eq!(get_name_pairs(ext_map, &root), expected_result);
+    }
+}
