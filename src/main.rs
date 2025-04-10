@@ -1,3 +1,5 @@
+/// sorts loose top level files in a directory into directories named after the extension
+/// creates a directory per extension
 use std::collections::HashMap;
 use std::env;
 use std::fmt;
