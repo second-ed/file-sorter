@@ -45,17 +45,23 @@ fn get_files_dirs(root_dir: String) -> Result<DirEntries, io::Error> {
         .filter_map(|entry| entry.ok())
         .collect();
 
-    let (dirs, files): (Vec<String>, Vec<String>) =
-        entries
-            .into_iter()
-            .fold((Vec::new(), Vec::new()), |(mut dirs, mut files), entry| {
-                let path = entry.path().to_string_lossy().to_string();
-                match entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                    true => dirs.push(path),
-                    false => files.push(path),
-                }
-                (dirs, files)
-            });
+    let (dirs, files): (Vec<String>, Vec<String>) = entries
+        .into_iter()
+        .filter(|entry| {
+            if let Ok(name) = entry.file_name().into_string() {
+                !name.starts_with('.')
+            } else {
+                false
+            }
+        })
+        .fold((Vec::new(), Vec::new()), |(mut dirs, mut files), entry| {
+            let path = entry.path().to_string_lossy().to_string();
+            match entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                true => dirs.push(path),
+                false => files.push(path),
+            }
+            (dirs, files)
+        });
 
     let entries = DirEntries {
         root: root_dir,
@@ -69,14 +75,17 @@ fn get_ext_map(files: &Vec<String>) -> HashMap<String, Vec<String>> {
     let mut ext_map: HashMap<String, Vec<String>> = HashMap::new();
 
     for f in files {
-        let path = Path::new(&f);
-
-        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            let ext = format!("_{}", ext.to_lowercase());
-            ext_map.entry(ext).or_insert_with(Vec::new).push(f.clone());
-        }
+        let ext = get_ext(Path::new(f));
+        ext_map.entry(ext).or_insert_with(Vec::new).push(f.clone());
     }
     ext_map
+}
+
+fn get_ext(f: &Path) -> String {
+    f.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| format!("_{}", ext.to_lowercase()))
+        .unwrap_or_else(|| "_no_ext".to_string())
 }
 
 fn get_dirs_to_create(entries: &DirEntries, ext_map: &HashMap<String, Vec<String>>) -> Vec<String> {
