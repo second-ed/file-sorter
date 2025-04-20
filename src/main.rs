@@ -9,7 +9,7 @@ use std::path::Path;
 use text_colorizer::*;
 
 fn main() {
-    let args = parse_args();
+    let args = Args::new();
     let entries: DirEntries =
         dbg!(get_files_dirs(args.root_dir.clone()).expect("Failed to get dirs and files"));
 
@@ -135,35 +135,33 @@ struct Args {
     root_dir: String,
 }
 
+impl Args {
+    fn new() -> Args {
+        let args: Vec<String> = env::args().skip(1).collect();
+
+        if args.len() != 1 {
+            eprintln!(
+                "{} - Create directories for each file type",
+                "file_sorter".bold().green()
+            );
+            eprintln!("Usage: file_sorter <ROOT_DIR>");
+            eprintln!(
+                "{} wrong number of args: expected 1 got {}. ",
+                "Error:".bold().red(),
+                args.len()
+            );
+            std::process::exit(1);
+        }
+        Args {
+            root_dir: args[0].clone(),
+        }
+    }
+}
+
 impl fmt::Display for Args {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "root_dir: {}", self.root_dir)
     }
-}
-
-fn parse_args() -> Args {
-    let args: Vec<String> = env::args().skip(1).collect();
-
-    if args.len() != 1 {
-        print_usage();
-        eprintln!(
-            "{} wrong number of args: expected 1 got {}. ",
-            "Error:".bold().red(),
-            args.len()
-        );
-        std::process::exit(1);
-    }
-    Args {
-        root_dir: args[0].clone(),
-    }
-}
-
-fn print_usage() {
-    eprintln!(
-        "{} - Create directories for each file type",
-        "file_sorter".green()
-    );
-    eprintln!("Usage: file_sorter <ROOT_DIR>");
 }
 
 #[cfg(test)]
