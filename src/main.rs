@@ -72,13 +72,11 @@ fn get_files_dirs(root_dir: String) -> Result<DirEntries, io::Error> {
 }
 
 fn get_ext_map(files: &Vec<String>) -> HashMap<String, Vec<String>> {
-    let mut ext_map: HashMap<String, Vec<String>> = HashMap::new();
-
-    for f in files {
-        let ext = get_ext(Path::new(f));
-        ext_map.entry(ext).or_default().push(f.clone());
-    }
-    ext_map
+    files.into_iter().fold(HashMap::new(), |mut map, f| {
+        let ext = get_ext(Path::new(&f));
+        map.entry(ext).or_default().push(f.clone());
+        map
+    })
 }
 
 fn get_ext(f: &Path) -> String {
@@ -89,7 +87,7 @@ fn get_ext(f: &Path) -> String {
 }
 
 fn get_dirs_to_create(entries: &DirEntries, ext_map: &HashMap<String, Vec<String>>) -> Vec<String> {
-    let dirs_to_create: Vec<String> = ext_map
+    ext_map
         .iter()
         .map(|(key, _)| {
             Path::new(&entries.root)
@@ -98,12 +96,11 @@ fn get_dirs_to_create(entries: &DirEntries, ext_map: &HashMap<String, Vec<String
                 .to_string()
         })
         .filter(|path| !entries.dirs.contains(path) && *path != entries.root)
-        .collect();
-    dirs_to_create
+        .collect()
 }
 
 fn get_name_pairs(ext_map: HashMap<String, Vec<String>>, root: &String) -> HashMap<String, String> {
-    let name_pairs: HashMap<String, String> = ext_map
+    ext_map
         .into_iter()
         .flat_map(|(k, files)| {
             files.into_iter().map(move |f| {
@@ -111,8 +108,7 @@ fn get_name_pairs(ext_map: HashMap<String, Vec<String>>, root: &String) -> HashM
                 (f, new_name)
             })
         })
-        .collect();
-    name_pairs
+        .collect()
 }
 
 fn create_dirs(dirs_to_create: Vec<String>) -> io::Result<()> {
