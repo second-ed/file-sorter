@@ -65,8 +65,8 @@ fn get_files_dirs(root_dir: String) -> Result<DirEntries, io::Error> {
 
     let entries = DirEntries {
         root: root_dir,
-        dirs: dirs,
-        files: files,
+        dirs,
+        files,
     };
     Ok(entries)
 }
@@ -76,7 +76,7 @@ fn get_ext_map(files: &Vec<String>) -> HashMap<String, Vec<String>> {
 
     for f in files {
         let ext = get_ext(Path::new(f));
-        ext_map.entry(ext).or_insert_with(Vec::new).push(f.clone());
+        ext_map.entry(ext).or_default().push(f.clone());
     }
     ext_map
 }
@@ -93,7 +93,7 @@ fn get_dirs_to_create(entries: &DirEntries, ext_map: &HashMap<String, Vec<String
 
     for (key, _) in ext_map.iter() {
         let path = Path::new(&entries.root)
-            .join(&key)
+            .join(key)
             .to_string_lossy()
             .to_string();
 
