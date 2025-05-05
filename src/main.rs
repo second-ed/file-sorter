@@ -89,45 +89,42 @@ fn get_ext(f: &Path) -> String {
 }
 
 fn get_dirs_to_create(entries: &DirEntries, ext_map: &HashMap<String, Vec<String>>) -> Vec<String> {
-    let mut dirs_to_create: Vec<String> = Vec::new();
-
-    for (key, _) in ext_map.iter() {
-        let path = Path::new(&entries.root)
-            .join(key)
-            .to_string_lossy()
-            .to_string();
-
-        if !entries.dirs.contains(&path) && path != entries.root {
-            dirs_to_create.push(path);
-        }
-    }
+    let dirs_to_create: Vec<String> = ext_map
+        .iter()
+        .map(|(key, _)| {
+            Path::new(&entries.root)
+                .join(key)
+                .to_string_lossy()
+                .to_string()
+        })
+        .filter(|path| !entries.dirs.contains(path) && *path != entries.root)
+        .collect();
     dirs_to_create
 }
 
 fn get_name_pairs(ext_map: HashMap<String, Vec<String>>, root: &String) -> HashMap<String, String> {
-    let mut name_pairs: HashMap<String, String> = HashMap::new();
-
-    for (k, files) in ext_map {
-        for f in files {
-            let new_name = f.replace(root, &format!("{}/{}", root, k));
-            name_pairs.insert(f, new_name);
-        }
-    }
+    let name_pairs: HashMap<String, String> = ext_map
+        .into_iter()
+        .flat_map(|(k, files)| {
+            files.into_iter().map(move |f| {
+                let new_name = f.replace(root, &format!("{}/{}", root, k));
+                (f, new_name)
+            })
+        })
+        .collect();
     name_pairs
 }
 
 fn create_dirs(dirs_to_create: Vec<String>) -> io::Result<()> {
-    for d in dirs_to_create {
-        fs::create_dir_all(&d)?;
-    }
-    Ok(())
+    dirs_to_create
+        .into_iter()
+        .try_for_each(|d| fs::create_dir_all(&d))
 }
 
 fn rename_files(name_pairs: HashMap<String, String>) -> io::Result<()> {
-    for (old_name, new_name) in name_pairs {
-        fs::rename(old_name, new_name)?;
-    }
-    Ok(())
+    name_pairs
+        .into_iter()
+        .try_for_each(|(old_name, new_name)| fs::rename(old_name, new_name))
 }
 
 #[derive(Debug)]
